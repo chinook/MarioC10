@@ -42,7 +42,8 @@
 
 /* Private variables ---------------------------------------------------------*/
 /* USER CODE BEGIN PV */
-	uint32_t compteur=0;
+	uint32_t wheel_rpm_count;
+	uint32_t rotor_rpm_count;
 
 
 /* USER CODE END PV */
@@ -58,7 +59,8 @@
 /* USER CODE END 0 */
 
 /* External variables --------------------------------------------------------*/
-
+extern TIM_HandleTypeDef htim3;
+extern UART_HandleTypeDef huart6;
 /* USER CODE BEGIN EV */
 
 /* USER CODE END EV */
@@ -200,6 +202,90 @@ void SysTick_Handler(void)
 /* For the available peripheral interrupt handler names,                      */
 /* please refer to the startup file (startup_stm32f7xx.s).                    */
 /******************************************************************************/
+
+/**
+  * @brief This function handles TIM3 global interrupt.
+  */
+void TIM3_IRQHandler(void)
+{
+  /* USER CODE BEGIN TIM3_IRQn 0 */
+	HAL_GPIO_TogglePin(LD2_GPIO_Port, LD2_Pin);
+
+	/* USER CODE END TIM3_IRQn 0 */
+	HAL_TIM_IRQHandler(&htim3);
+	/* USER CODE BEGIN TIM3_IRQn 1 */
+	time_100ms_Flag = 1;
+
+	wheel_rpm_speed = wheel_rpm_count;
+	wheel_rpm_count = 0;
+
+	rotor_rpm_speed = rotor_rpm_count;
+	rotor_rpm_count = 0;
+
+  /* USER CODE END TIM3_IRQn 0 */
+  HAL_TIM_IRQHandler(&htim3);
+  /* USER CODE BEGIN TIM3_IRQn 1 */
+
+  /* USER CODE END TIM3_IRQn 1 */
+}
+
+/**
+  * @brief This function handles EXTI line[15:10] interrupts.
+  */
+void EXTI15_10_IRQHandler(void)
+{
+  /* USER CODE BEGIN EXTI15_10_IRQn 0 */
+	if(__HAL_GPIO_EXTI_GET_FLAG(GPIO_PIN_11))
+	{
+		// Wheel RPM
+		++wheel_rpm_count;
+	}
+	if(__HAL_GPIO_EXTI_GET_FLAG(GPIO_PIN_12))
+	{
+		// Rotor RPM
+		++rotor_rpm_count;
+	}
+  /* USER CODE END EXTI15_10_IRQn 0 */
+  HAL_GPIO_EXTI_IRQHandler(WHEEL_RPM_Pin);
+  HAL_GPIO_EXTI_IRQHandler(ROTOR_RPM_Pin);
+  /* USER CODE BEGIN EXTI15_10_IRQn 1 */
+
+  /* USER CODE END EXTI15_10_IRQn 1 */
+}
+
+/**
+  * @brief This function handles USART6 global interrupt.
+  */
+void USART6_IRQHandler(void)
+{
+  /* USER CODE BEGIN USART6_IRQn 0 */
+	HAL_GPIO_TogglePin(LD3_GPIO_Port, LD3_Pin);
+
+	if ((USART6->ISR & UART_IT_RXNE)) {
+		uint8_t rbyte = huart6.Instance->RDR;
+		rx_buff[index_buff] = rbyte;
+		index_buff++;
+
+		if(rbyte == '$')
+		{
+			ws_receive_flag = 1;
+		}
+
+		//__HAL_UART_SEND_REQ(&huart4, UART_RXDATA_FLUSH_REQUEST);
+		//__HAL_UART_ENABLE_IT(&huart4,UART_IT_RXNE);
+	}
+
+	if (USART6->ISR & UART_IT_ORE)
+	{
+	  //__HAL_UART_SEND_REQ(&huart4, UART_RXDATA_FLUSH_REQUEST);
+	  //__HAL_UART_ENABLE_IT(&huart4,UART_IT_ORE);
+	}
+  /* USER CODE END USART6_IRQn 0 */
+  HAL_UART_IRQHandler(&huart6);
+  /* USER CODE BEGIN USART6_IRQn 1 */
+
+  /* USER CODE END USART6_IRQn 1 */
+}
 
 /* USER CODE BEGIN 1 */
 

@@ -22,7 +22,8 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include "string.h"
+#include "stdio.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -50,19 +51,21 @@ SD_HandleTypeDef hsd1;
 
 SPI_HandleTypeDef hspi1;
 
-UART_HandleTypeDef huart2;
+TIM_HandleTypeDef htim3;
+
+USART_HandleTypeDef husart2;
 UART_HandleTypeDef huart3;
+UART_HandleTypeDef huart6;
 
 PCD_HandleTypeDef hpcd_USB_OTG_FS;
 
 /* USER CODE BEGIN PV */
-uint8_t aRxBuffer[10];
+uint8_t aRxBuffer[256];
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
-static void MX_USART3_UART_Init(void);
 static void MX_USB_OTG_FS_PCD_Init(void);
 static void MX_CAN1_Init(void);
 static void MX_ADC1_Init(void);
@@ -70,7 +73,10 @@ static void MX_ADC3_Init(void);
 static void MX_CAN2_Init(void);
 static void MX_SDMMC1_SD_Init(void);
 static void MX_SPI1_Init(void);
-static void MX_USART2_UART_Init(void);
+static void MX_USART2_Init(void);
+static void MX_USART6_UART_Init(void);
+static void MX_USART3_UART_Init(void);
+static void MX_TIM3_Init(void);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
@@ -90,7 +96,8 @@ int main(void)
 	index_buff = 0;
 	ws_receive_flag = 0;
 	time_100ms_Flag = 0;
-	vitesse = 0;
+	wheel_rpm_speed = 0;
+	rotor_rpm_speed = 0;
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -111,7 +118,6 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
-  MX_USART3_UART_Init();
   MX_USB_OTG_FS_PCD_Init();
   MX_CAN1_Init();
   MX_ADC1_Init();
@@ -119,9 +125,12 @@ int main(void)
   MX_CAN2_Init();
   MX_SDMMC1_SD_Init();
   MX_SPI1_Init();
-  MX_USART2_UART_Init();
+  MX_USART2_Init();
+  MX_USART6_UART_Init();
+  MX_USART3_UART_Init();
+  MX_TIM3_Init();
   /* USER CODE BEGIN 2 */
-  HAL_UART_Receive_IT(&huart3, (uint8_t *)aRxBuffer, 10);
+  HAL_UART_Receive_IT(&huart6, (uint8_t *)aRxBuffer, sizeof(aRxBuffer));
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -138,10 +147,13 @@ int main(void)
 
 	  if(time_100ms_Flag == 1)
 	  {
-		  char message[256];
+		  uint8_t message[256];
 		  time_100ms_Flag = 0 ;
-		  snprintf(message,sizeof(message),"Rpm = %d \n\r",vitesse);
-		  HAL_UART_Transmit(&huart3,message,sizeof(message),10);
+		  snprintf((char*)message, sizeof(message), "Wheel RPM = %u \n\r", (unsigned int)wheel_rpm_speed);
+		  HAL_UART_Transmit(&huart3, message, sizeof(message), 10);
+
+		  snprintf((char*)message, sizeof(message), "Rotor RPM = %u \n\r", (unsigned int)rotor_rpm_speed);
+		  HAL_UART_Transmit(&huart3, message, sizeof(message), 10);
 	  }
 	  /*
 	  if(ws_receive_flag == 1) {
@@ -514,11 +526,70 @@ static void MX_SPI1_Init(void)
 }
 
 /**
+  * @brief TIM3 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_TIM3_Init(void)
+{
+
+  /* USER CODE BEGIN TIM3_Init 0 */
+
+  /* USER CODE END TIM3_Init 0 */
+
+  TIM_ClockConfigTypeDef sClockSourceConfig = {0};
+  TIM_MasterConfigTypeDef sMasterConfig = {0};
+  TIM_OC_InitTypeDef sConfigOC = {0};
+
+  /* USER CODE BEGIN TIM3_Init 1 */
+
+  /* USER CODE END TIM3_Init 1 */
+  htim3.Instance = TIM3;
+  htim3.Init.Prescaler = 480;
+  htim3.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim3.Init.Period = 10000;
+  htim3.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+  htim3.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  if (HAL_TIM_Base_Init(&htim3) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
+  if (HAL_TIM_ConfigClockSource(&htim3, &sClockSourceConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  if (HAL_TIM_OC_Init(&htim3) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
+  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+  if (HAL_TIMEx_MasterConfigSynchronization(&htim3, &sMasterConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sConfigOC.OCMode = TIM_OCMODE_TIMING;
+  sConfigOC.Pulse = 0;
+  sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
+  sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
+  if (HAL_TIM_OC_ConfigChannel(&htim3, &sConfigOC, TIM_CHANNEL_1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TIM3_Init 2 */
+
+  /* USER CODE END TIM3_Init 2 */
+  HAL_TIM_MspPostInit(&htim3);
+
+}
+
+/**
   * @brief USART2 Initialization Function
   * @param None
   * @retval None
   */
-static void MX_USART2_UART_Init(void)
+static void MX_USART2_Init(void)
 {
 
   /* USER CODE BEGIN USART2_Init 0 */
@@ -528,17 +599,16 @@ static void MX_USART2_UART_Init(void)
   /* USER CODE BEGIN USART2_Init 1 */
 
   /* USER CODE END USART2_Init 1 */
-  huart2.Instance = USART2;
-  huart2.Init.BaudRate = 115200;
-  huart2.Init.WordLength = UART_WORDLENGTH_8B;
-  huart2.Init.StopBits = UART_STOPBITS_1;
-  huart2.Init.Parity = UART_PARITY_NONE;
-  huart2.Init.Mode = UART_MODE_TX_RX;
-  huart2.Init.HwFlowCtl = UART_HWCONTROL_RTS_CTS;
-  huart2.Init.OverSampling = UART_OVERSAMPLING_16;
-  huart2.Init.OneBitSampling = UART_ONE_BIT_SAMPLE_DISABLE;
-  huart2.AdvancedInit.AdvFeatureInit = UART_ADVFEATURE_NO_INIT;
-  if (HAL_UART_Init(&huart2) != HAL_OK)
+  husart2.Instance = USART2;
+  husart2.Init.BaudRate = 115200;
+  husart2.Init.WordLength = USART_WORDLENGTH_8B;
+  husart2.Init.StopBits = USART_STOPBITS_1;
+  husart2.Init.Parity = USART_PARITY_NONE;
+  husart2.Init.Mode = USART_MODE_TX_RX;
+  husart2.Init.CLKPolarity = USART_POLARITY_LOW;
+  husart2.Init.CLKPhase = USART_PHASE_1EDGE;
+  husart2.Init.CLKLastBit = USART_LASTBIT_DISABLE;
+  if (HAL_USART_Init(&husart2) != HAL_OK)
   {
     Error_Handler();
   }
@@ -580,6 +650,41 @@ static void MX_USART3_UART_Init(void)
   /* USER CODE BEGIN USART3_Init 2 */
 
   /* USER CODE END USART3_Init 2 */
+
+}
+
+/**
+  * @brief USART6 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_USART6_UART_Init(void)
+{
+
+  /* USER CODE BEGIN USART6_Init 0 */
+
+  /* USER CODE END USART6_Init 0 */
+
+  /* USER CODE BEGIN USART6_Init 1 */
+
+  /* USER CODE END USART6_Init 1 */
+  huart6.Instance = USART6;
+  huart6.Init.BaudRate = 4800;
+  huart6.Init.WordLength = UART_WORDLENGTH_8B;
+  huart6.Init.StopBits = UART_STOPBITS_1;
+  huart6.Init.Parity = UART_PARITY_NONE;
+  huart6.Init.Mode = UART_MODE_TX_RX;
+  huart6.Init.HwFlowCtl = UART_HWCONTROL_NONE;
+  huart6.Init.OverSampling = UART_OVERSAMPLING_16;
+  huart6.Init.OneBitSampling = UART_ONE_BIT_SAMPLE_DISABLE;
+  huart6.AdvancedInit.AdvFeatureInit = UART_ADVFEATURE_NO_INIT;
+  if (HAL_UART_Init(&huart6) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN USART6_Init 2 */
+
+  /* USER CODE END USART6_Init 2 */
 
 }
 
@@ -642,7 +747,7 @@ static void MX_GPIO_Init(void)
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOF, LED1_Pin|LED_WARNING_Pin|LED_CANB_Pin|LED_CANA_Pin
-                          |LORA_EN_Pin|LED4_Pin, GPIO_PIN_RESET);
+                          |LED4_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOB, LD1_Pin|MAST_CLOCK_Pin|PITCH_CLOCK_Pin|LD3_Pin
@@ -665,9 +770,9 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_Init(SD_DETECT_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pins : LED1_Pin LED_WARNING_Pin LED_CANB_Pin LED_CANA_Pin
-                           LORA_EN_Pin LED4_Pin */
+                           LED4_Pin */
   GPIO_InitStruct.Pin = LED1_Pin|LED_WARNING_Pin|LED_CANB_Pin|LED_CANA_Pin
-                          |LORA_EN_Pin|LED4_Pin;
+                          |LED4_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
@@ -705,8 +810,8 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOG, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : ROTOR_RPM2_Pin WHEEL_RPM_Pin ROTOR_RPM_Pin WHEEL_RPM2_Pin */
-  GPIO_InitStruct.Pin = ROTOR_RPM2_Pin|WHEEL_RPM_Pin|ROTOR_RPM_Pin|WHEEL_RPM2_Pin;
+  /*Configure GPIO pins : WHEEL_RPM_Pin ROTOR_RPM_Pin */
+  GPIO_InitStruct.Pin = WHEEL_RPM_Pin|ROTOR_RPM_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOE, &GPIO_InitStruct);
@@ -717,18 +822,10 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOD, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : LIMIT2_Pin LIMIT1_Pin USB_OverCurrent_Pin */
-  GPIO_InitStruct.Pin = LIMIT2_Pin|LIMIT1_Pin|USB_OverCurrent_Pin;
+  /*Configure GPIO pins : PG2 LIMIT1_Pin USB_OverCurrent_Pin */
+  GPIO_InitStruct.Pin = GPIO_PIN_2|LIMIT1_Pin|USB_OverCurrent_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
-  HAL_GPIO_Init(GPIOG, &GPIO_InitStruct);
-
-  /*Configure GPIO pin : PG9 */
-  GPIO_InitStruct.Pin = GPIO_PIN_9;
-  GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
-  GPIO_InitStruct.Alternate = GPIO_AF8_USART6;
   HAL_GPIO_Init(GPIOG, &GPIO_InitStruct);
 
   /*Configure GPIO pins : RMII_TX_EN_Pin RMII_TXD0_Pin */
@@ -744,6 +841,10 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(PITCH_DATA_GPIO_Port, &GPIO_InitStruct);
+
+  /* EXTI interrupt init*/
+  HAL_NVIC_SetPriority(EXTI15_10_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(EXTI15_10_IRQn);
 
 }
 

@@ -35,7 +35,8 @@ extern "C" {
 	uint8_t rx_buff[64];
 	uint8_t index_buff;
 	uint8_t ws_receive_flag;
-	uint32_t vitesse;
+	uint32_t wheel_rpm_speed;
+	uint32_t rotor_rpm_speed;
 	uint8_t	time_100ms_Flag;
 /* USER CODE END Includes */
 
@@ -53,6 +54,8 @@ extern "C" {
 /* USER CODE BEGIN EM */
 
 /* USER CODE END EM */
+
+void HAL_TIM_MspPostInit(TIM_HandleTypeDef *htim);
 
 /* Exported functions prototypes ---------------------------------------------*/
 void Error_Handler(void);
@@ -92,18 +95,14 @@ void Error_Handler(void);
 #define LD1_GPIO_Port GPIOB
 #define MAST_CLOCK_Pin GPIO_PIN_2
 #define MAST_CLOCK_GPIO_Port GPIOB
-#define LORA_EN_Pin GPIO_PIN_12
-#define LORA_EN_GPIO_Port GPIOF
 #define LED4_Pin GPIO_PIN_15
 #define LED4_GPIO_Port GPIOF
-#define ROTOR_RPM2_Pin GPIO_PIN_10
-#define ROTOR_RPM2_GPIO_Port GPIOE
 #define WHEEL_RPM_Pin GPIO_PIN_11
 #define WHEEL_RPM_GPIO_Port GPIOE
+#define WHEEL_RPM_EXTI_IRQn EXTI15_10_IRQn
 #define ROTOR_RPM_Pin GPIO_PIN_12
 #define ROTOR_RPM_GPIO_Port GPIOE
-#define WHEEL_RPM2_Pin GPIO_PIN_13
-#define WHEEL_RPM2_GPIO_Port GPIOE
+#define ROTOR_RPM_EXTI_IRQn EXTI15_10_IRQn
 #define PITCH_CLOCK_Pin GPIO_PIN_13
 #define PITCH_CLOCK_GPIO_Port GPIOB
 #define LD3_Pin GPIO_PIN_14
@@ -116,8 +115,6 @@ void Error_Handler(void);
 #define LORA_INT_GPIO_Port GPIOD
 #define MAST_DATA_Pin GPIO_PIN_13
 #define MAST_DATA_GPIO_Port GPIOD
-#define LIMIT2_Pin GPIO_PIN_2
-#define LIMIT2_GPIO_Port GPIOG
 #define LIMIT1_Pin GPIO_PIN_3
 #define LIMIT1_GPIO_Port GPIOG
 #define USB_PowerSwitchOn_Pin GPIO_PIN_6
