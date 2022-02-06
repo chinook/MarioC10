@@ -32,7 +32,11 @@ extern "C" {
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+	uint8_t rx_buff[64];
+	uint8_t index_buff;
+	uint8_t ws_receive_flag;
+	uint32_t vitesse;
+	uint8_t	time_100ms_Flag;
 /* USER CODE END Includes */
 
 /* Exported types ------------------------------------------------------------*/
@@ -153,5 +157,3 @@ void Error_Handler(void);
 #endif
 
 #endif /* __MAIN_H */
-
-/************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/
