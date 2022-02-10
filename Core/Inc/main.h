@@ -37,7 +37,15 @@ extern "C" {
 	uint8_t ws_receive_flag;
 	uint32_t wheel_rpm_speed;
 	uint32_t rotor_rpm_speed;
-	uint8_t	time_100ms_Flag;
+	uint8_t	timer3_flag;
+
+	uint8_t can1_recv_flag;
+
+	CAN_TxHeaderTypeDef pHeader;
+	CAN_RxHeaderTypeDef pRxHeader;
+	uint8_t a, r;  // CAN mailboxes used for tx and rx
+
+	uint8_t can_recv_buffer[4];
 /* USER CODE END Includes */
 
 /* Exported types ------------------------------------------------------------*/
@@ -54,8 +62,6 @@ extern "C" {
 /* USER CODE BEGIN EM */
 
 /* USER CODE END EM */
-
-void HAL_TIM_MspPostInit(TIM_HandleTypeDef *htim);
 
 /* Exported functions prototypes ---------------------------------------------*/
 void Error_Handler(void);
@@ -97,6 +103,8 @@ void Error_Handler(void);
 #define MAST_CLOCK_GPIO_Port GPIOB
 #define LED4_Pin GPIO_PIN_15
 #define LED4_GPIO_Port GPIOF
+#define LED2_Pin GPIO_PIN_0
+#define LED2_GPIO_Port GPIOG
 #define WHEEL_RPM_Pin GPIO_PIN_11
 #define WHEEL_RPM_GPIO_Port GPIOE
 #define WHEEL_RPM_EXTI_IRQn EXTI15_10_IRQn

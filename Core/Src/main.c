@@ -47,8 +47,6 @@ ADC_HandleTypeDef hadc3;
 CAN_HandleTypeDef hcan1;
 CAN_HandleTypeDef hcan2;
 
-SD_HandleTypeDef hsd1;
-
 SPI_HandleTypeDef hspi1;
 
 TIM_HandleTypeDef htim3;
@@ -71,7 +69,6 @@ static void MX_CAN1_Init(void);
 static void MX_ADC1_Init(void);
 static void MX_ADC3_Init(void);
 static void MX_CAN2_Init(void);
-static void MX_SDMMC1_SD_Init(void);
 static void MX_SPI1_Init(void);
 static void MX_USART2_Init(void);
 static void MX_USART6_UART_Init(void);
@@ -79,11 +76,31 @@ static void MX_USART3_UART_Init(void);
 static void MX_TIM3_Init(void);
 /* USER CODE BEGIN PFP */
 
+HAL_StatusTypeDef TransmitCAN(uint8_t id, uint8_t* buf, uint8_t size);
+
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+HAL_StatusTypeDef TransmitCAN(uint8_t id, uint8_t* buf, uint8_t size)
+{
+	CAN_TxHeaderTypeDef msg;
+	msg.StdId = id;
+	msg.IDE = CAN_ID_STD;
+	msg.RTR = CAN_RTR_DATA;
+	msg.DLC = size;
+	msg.TransmitGlobalTime = DISABLE;
 
+	uint32_t mb;
+	HAL_StatusTypeDef ret = HAL_CAN_AddTxMessage(&hcan1, &msg, buf, &mb);
+	if (ret != HAL_OK)
+		return ret;
+
+	// Update the CAN led
+	// ToggleLed(LED_CAN);
+	HAL_GPIO_TogglePin(LED_CANA_GPIO_Port, LED_CANA_Pin);
+	return ret;
+}
 /* USER CODE END 0 */
 
 /**
@@ -95,9 +112,12 @@ int main(void)
   /* USER CODE BEGIN 1 */
 	index_buff = 0;
 	ws_receive_flag = 0;
-	time_100ms_Flag = 0;
+	timer3_flag = 0;
 	wheel_rpm_speed = 0;
 	rotor_rpm_speed = 0;
+
+	can1_recv_flag = 0;
+
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -123,7 +143,6 @@ int main(void)
   MX_ADC1_Init();
   MX_ADC3_Init();
   MX_CAN2_Init();
-  MX_SDMMC1_SD_Init();
   MX_SPI1_Init();
   MX_USART2_Init();
   MX_USART6_UART_Init();
@@ -141,20 +160,61 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-	  //uint8_t Test[] = "Hello World !!!\r\n"; //Data to send
-	  //HAL_UART_Transmit(&huart3,Test,sizeof(Test),10);// Sending in normal mode
-	  //HAL_Delay(1000);
 
-	  if(time_100ms_Flag == 1)
+	  HAL_Delay(10); // Execute main loop every 10 ms
+
+	  // Check pushbuttons status
+	  // uint8_t pb1_val = HAL_GPIO_ReadPin();
+
+	  if(timer3_flag == 1)
 	  {
-		  uint8_t message[256];
-		  time_100ms_Flag = 0 ;
+		  timer3_flag = 0;
+
+		  // Send CAN frame
+		  static uint8_t x = 0;
+		  uint8_t data[4] = { 0,1,2,x++ };
+		  HAL_StatusTypeDef can_success = TransmitCAN(0xAA, data, 4);
+		  if (can_success != HAL_OK)
+		  {
+			  HAL_GPIO_WritePin(LED_ERROR_GPIO_Port, LED_ERROR_Pin, 1);
+		  }
+		  else
+		  {
+			  HAL_GPIO_WritePin(LED_ERROR_GPIO_Port, LED_ERROR_Pin, 0);
+		  }
+
+		  // Blink led
+		  HAL_GPIO_TogglePin(LD1_GPIO_Port, LD1_Pin);		// Led 1 on nucleo
+		  HAL_GPIO_TogglePin(LED1_GPIO_Port, LED1_Pin);
+
+		  /*
+		  uint8_t message[256] = {0};
 		  snprintf((char*)message, sizeof(message), "Wheel RPM = %u \n\r", (unsigned int)wheel_rpm_speed);
 		  HAL_UART_Transmit(&huart3, message, sizeof(message), 10);
 
 		  snprintf((char*)message, sizeof(message), "Rotor RPM = %u \n\r", (unsigned int)rotor_rpm_speed);
 		  HAL_UART_Transmit(&huart3, message, sizeof(message), 10);
+		  */
 	  }
+
+	  // Check for can messages
+	  if (can1_recv_flag)
+	  {
+		  can1_recv_flag = 0;
+
+		  // Blink LED CANA led
+		  HAL_GPIO_TogglePin(LED_CANA_GPIO_Port, LED_CANA_Pin);
+
+		  uint32_t id = pRxHeader.StdId;
+		  uint32_t size = pRxHeader.DLC;
+
+		  uint8_t data = can_recv_buffer[0];
+
+		  uint8_t message[256] = {0};
+		  snprintf((char*)message, sizeof(message), "Received CAN frame  ID = %d,  size = %d,  data = %d", (int)id, (int)size, (int)data);
+		  HAL_UART_Transmit(&huart3, message, sizeof(message), 10);
+	  }
+
 	  /*
 	  if(ws_receive_flag == 1) {
 		  static char frame_begin[] = "$IIMWV";
@@ -391,11 +451,11 @@ static void MX_CAN1_Init(void)
 
   /* USER CODE END CAN1_Init 1 */
   hcan1.Instance = CAN1;
-  hcan1.Init.Prescaler = 16;
+  hcan1.Init.Prescaler = 21;
   hcan1.Init.Mode = CAN_MODE_NORMAL;
   hcan1.Init.SyncJumpWidth = CAN_SJW_1TQ;
-  hcan1.Init.TimeSeg1 = CAN_BS1_1TQ;
-  hcan1.Init.TimeSeg2 = CAN_BS2_1TQ;
+  hcan1.Init.TimeSeg1 = CAN_BS1_12TQ;
+  hcan1.Init.TimeSeg2 = CAN_BS2_4TQ;
   hcan1.Init.TimeTriggeredMode = DISABLE;
   hcan1.Init.AutoBusOff = DISABLE;
   hcan1.Init.AutoWakeUp = DISABLE;
@@ -407,7 +467,30 @@ static void MX_CAN1_Init(void)
     Error_Handler();
   }
   /* USER CODE BEGIN CAN1_Init 2 */
-
+  	CAN_FilterTypeDef sf;
+	sf.FilterMaskIdHigh = 0x0000;
+	sf.FilterMaskIdLow = 0x0000;
+	sf.FilterFIFOAssignment = CAN_FILTER_FIFO0;
+	sf.FilterBank = 0;
+	sf.FilterMode = CAN_FILTERMODE_IDMASK;
+	sf.FilterScale = CAN_FILTERSCALE_32BIT;
+	sf.FilterActivation = CAN_FILTER_ENABLE;
+	if (HAL_CAN_ConfigFilter(&hcan1, &sf) != HAL_OK)
+	{
+	  Error_Handler();
+	}
+	//if (HAL_CAN_RegisterCallback(&hcan1, HAL_CAN_RX_FIFO0_MSG_PENDING_CB_ID, can_irq))
+	//{
+	//	  Error_Handler();
+	//}
+	if (HAL_CAN_Start(&hcan1) != HAL_OK)
+	{
+		Error_Handler();
+	}
+	if (HAL_CAN_ActivateNotification(&hcan1, CAN_IT_RX_FIFO0_MSG_PENDING) != HAL_OK)
+	{
+		Error_Handler();
+	}
   /* USER CODE END CAN1_Init 2 */
 
 }
@@ -446,42 +529,6 @@ static void MX_CAN2_Init(void)
   /* USER CODE BEGIN CAN2_Init 2 */
 
   /* USER CODE END CAN2_Init 2 */
-
-}
-
-/**
-  * @brief SDMMC1 Initialization Function
-  * @param None
-  * @retval None
-  */
-static void MX_SDMMC1_SD_Init(void)
-{
-
-  /* USER CODE BEGIN SDMMC1_Init 0 */
-
-  /* USER CODE END SDMMC1_Init 0 */
-
-  /* USER CODE BEGIN SDMMC1_Init 1 */
-
-  /* USER CODE END SDMMC1_Init 1 */
-  hsd1.Instance = SDMMC1;
-  hsd1.Init.ClockEdge = SDMMC_CLOCK_EDGE_RISING;
-  hsd1.Init.ClockBypass = SDMMC_CLOCK_BYPASS_DISABLE;
-  hsd1.Init.ClockPowerSave = SDMMC_CLOCK_POWER_SAVE_DISABLE;
-  hsd1.Init.BusWide = SDMMC_BUS_WIDE_1B;
-  hsd1.Init.HardwareFlowControl = SDMMC_HARDWARE_FLOW_CONTROL_DISABLE;
-  hsd1.Init.ClockDiv = 0;
-  if (HAL_SD_Init(&hsd1) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  if (HAL_SD_ConfigWideBusOperation(&hsd1, SDMMC_BUS_WIDE_4B) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /* USER CODE BEGIN SDMMC1_Init 2 */
-
-  /* USER CODE END SDMMC1_Init 2 */
 
 }
 
@@ -547,7 +594,7 @@ static void MX_TIM3_Init(void)
   htim3.Instance = TIM3;
   htim3.Init.Prescaler = 480;
   htim3.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim3.Init.Period = 10000;
+  htim3.Init.Period = 20000;
   htim3.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim3.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
   if (HAL_TIM_Base_Init(&htim3) != HAL_OK)
@@ -578,9 +625,8 @@ static void MX_TIM3_Init(void)
     Error_Handler();
   }
   /* USER CODE BEGIN TIM3_Init 2 */
-
+  HAL_TIM_Base_Start_IT(&htim3);
   /* USER CODE END TIM3_Init 2 */
-  HAL_TIM_MspPostInit(&htim3);
 
 }
 
@@ -754,7 +800,7 @@ static void MX_GPIO_Init(void)
                           |LD2_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOG, GPIO_PIN_1|USB_PowerSwitchOn_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOG, LED2_Pin|GPIO_PIN_1|USB_PowerSwitchOn_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pins : LORA_RST_Pin LED_ERROR_Pin */
   GPIO_InitStruct.Pin = LORA_RST_Pin|LED_ERROR_Pin;
@@ -803,8 +849,8 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : PG1 USB_PowerSwitchOn_Pin */
-  GPIO_InitStruct.Pin = GPIO_PIN_1|USB_PowerSwitchOn_Pin;
+  /*Configure GPIO pins : LED2_Pin PG1 USB_PowerSwitchOn_Pin */
+  GPIO_InitStruct.Pin = LED2_Pin|GPIO_PIN_1|USB_PowerSwitchOn_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;

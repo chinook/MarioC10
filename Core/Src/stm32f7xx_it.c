@@ -59,6 +59,7 @@
 /* USER CODE END 0 */
 
 /* External variables --------------------------------------------------------*/
+extern CAN_HandleTypeDef hcan1;
 extern TIM_HandleTypeDef htim3;
 extern UART_HandleTypeDef huart6;
 /* USER CODE BEGIN EV */
@@ -204,17 +205,32 @@ void SysTick_Handler(void)
 /******************************************************************************/
 
 /**
+  * @brief This function handles CAN1 RX0 interrupts.
+  */
+void CAN1_RX0_IRQHandler(void)
+{
+  /* USER CODE BEGIN CAN1_RX0_IRQn 0 */
+
+  /* USER CODE END CAN1_RX0_IRQn 0 */
+  HAL_CAN_IRQHandler(&hcan1);
+  /* USER CODE BEGIN CAN1_RX0_IRQn 1 */
+  	can1_recv_flag = 1;
+    HAL_CAN_GetRxMessage(&hcan1, CAN_RX_FIFO0, &pRxHeader, can_recv_buffer);
+  /* USER CODE END CAN1_RX0_IRQn 1 */
+}
+
+/**
   * @brief This function handles TIM3 global interrupt.
   */
 void TIM3_IRQHandler(void)
 {
   /* USER CODE BEGIN TIM3_IRQn 0 */
-	HAL_GPIO_TogglePin(LD2_GPIO_Port, LD2_Pin);
+	//HAL_GPIO_TogglePin(LD2_GPIO_Port, LD2_Pin);
 
-	/* USER CODE END TIM3_IRQn 0 */
-	HAL_TIM_IRQHandler(&htim3);
-	/* USER CODE BEGIN TIM3_IRQn 1 */
-	time_100ms_Flag = 1;
+  /* USER CODE END TIM3_IRQn 0 */
+  HAL_TIM_IRQHandler(&htim3);
+  /* USER CODE BEGIN TIM3_IRQn 1 */
+  	timer3_flag = 1;
 
 	wheel_rpm_speed = wheel_rpm_count;
 	wheel_rpm_count = 0;
